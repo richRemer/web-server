@@ -28,7 +28,7 @@ export function createServer(options, requestListener) {
   }
 
   if (typeof requestListener === "function") {
-    requestListener = forwarded(options.trust_proxy, requestListener);
+    requestListener = decorated(options.trust_proxy, requestListener);
   }
 
   const server = module.createServer(opts, requestListener);
@@ -36,8 +36,9 @@ export function createServer(options, requestListener) {
   return Object.assign(server, {secure});
 }
 
-function forwarded(trusted, requestListener) {
-  return async function forwarded(req, res, next) {
+function decorated(trusted, requestListener) {
+  return async function decorated(req, res, next) {
+    req.getCertificate = getCertificate;
     req.forwarded = {};
 
     if (trusted) {
@@ -57,4 +58,16 @@ function forwarded(trusted, requestListener) {
 
     return requestListener(req, res, next);
   };
+}
+
+function getCertificate() {
+  try {
+    const cert = "cert" in req.forwarded
+      ? req.forwarded.cert
+      : req.connection.getPeerCertificate()?.raw;
+
+    return new X509Certificate(cert);
+  } catch (err) {
+    return null;
+  }
 }
